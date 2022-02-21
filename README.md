@@ -1,3 +1,10 @@
+# Vue 3 + Typescript + Vite
+dev build:
+```
+npm install 
+npm run dev
+```
+
 # Recruitment assignment
 ----
 
