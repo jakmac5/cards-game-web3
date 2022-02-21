@@ -1,16 +1,28 @@
 <template>
 	<h1 v-if="roundsLeft != 0" class="header">Guess next card!</h1>
-	<h3 v-if="!start && state && roundsLeft != 0" class="header">
+	<h3
+		v-if="!start && Object.keys(state).length > 0 && roundsLeft != 0"
+		class="header"
+	>
 		Reload the previous game?
 	</h3>
 	<div class="nav" v-if="roundsLeft != 0">
-		<VButton v-if="!start && !state" @click="startGame()" color="green"
+		<VButton
+			v-if="!start && Object.keys(state).length === 0"
+			@click="startGame()"
+			color="green"
 			>Start new game</VButton
 		>
-		<VButton v-if="!start && state" @click="loadPrevGame()" color="green"
+		<VButton
+			v-if="!start && Object.keys(state).length > 0"
+			@click="loadPrevGame()"
+			color="green"
 			>Yes</VButton
 		>
-		<VButton v-if="!start && state" @click="startGame()" color="red"
+		<VButton
+			v-if="!start && Object.keys(state).length > 0"
+			@click="startGame()"
+			color="red"
 			>No</VButton
 		>
 	</div>
@@ -30,7 +42,9 @@
 		<VButton @click="startGame()" color="green">Start new game</VButton>
 	</div>
 	History: <br />
-	{{ history }}
+	<div class="history">
+		{{ history }}
+	</div>
 </template>
 
 <script lang="ts">
@@ -127,7 +141,12 @@
 		margin-bottom: 60px;
 		font-size: 4em;
 	}
-
+	.history {
+		width: 100%;
+		height: 400px;
+		margin-bottom: 100px;
+		overflow-y: auto;
+	}
 	.nav {
 		@apply flex gap-4 mt-12;
 	}
