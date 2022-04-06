@@ -7,6 +7,9 @@
 		<button v-if="metamaskSupport" @click="saveScore()">
 			Wykonaj kontrakt
 		</button>
+		<button v-if="metamaskSupport" @click="retrieveScores()">
+			Pobierz wyniki
+		</button>
 		{{ allScores }}
 	</div>
 	<h1 v-if="roundsLeft != 0" class="header">Guess next card!</h1>
@@ -145,16 +148,25 @@
 		},
 		setup() {
 			const store = useStore();
-			const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // address to env
+			const contractAddress = "0xd5a423B8CF5b6097aCC243c18d738934fE09235f"; // address to env
 			const allScores = ref<Score[]>([]);
 
 			const retrieveScores = async function () {
 				allScores.value = [];
 
 				//@ts-expect-error Window.ethers not TS
+
 				if (typeof window.ethereum !== "undefined") {
 					//@ts-expect-error Window.ethers not TS
+
 					const provider = new ethers.providers.Web3Provider(window.ethereum);
+					// const provider = new ethers.providers.AlchemyProvider(
+					// 	"homestead",
+					// 	"Ym9pJEN95QI7l4T6knGpa7-P6hFh6vyZ"
+					// );
+					// const provider = new ethers.providers.JsonRpcProvider(
+					// 	"https://eth-rinkeby.alchemyapi.io/v2/Ym9pJEN95QI7l4T6knGpa7-P6hFh6vyZ"
+					// );
 					// Contract reference
 					const contract = new ethers.Contract(
 						contractAddress,
@@ -162,10 +174,15 @@
 						provider
 					);
 					try {
+						// test total
+						// const total = await contract.getTotalScores({});
+						// allScores.value.push = total;
+						// console.log("total:", allScores.value);
+
 						// call contract public method
 						const data = await contract.getAllScores({});
 						console.log("allScores :>> ", data);
-						// loops messages to format the date and add them to the array
+						// // loops messages to format the date and add them to the array
 						data.forEach((score: any) => {
 							allScores.value.push({
 								from: score.from,
@@ -206,12 +223,9 @@
 						// message.value = "";
 						// trxInProgress.value = false;
 
-						console.log(
-							"transaction proceed, this.getMessages:",
-							//@ts-expect-error no types
-							this.getMessages()
-						);
+						console.log("transaction proceed, waiting to retrieveScores");
 						await retrieveScores();
+						console.log("got scores:", allScores.value);
 					} catch (error) {
 						console.error(error);
 						// trxInProgress.value = false;
