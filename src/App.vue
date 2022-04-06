@@ -1,4 +1,14 @@
 <template>
+	<div id="metamask">
+		<button v-if="metamaskSupport" @click="connectWallet()">
+			Metamask Login
+		</button>
+		<h2 v-else>Install metamask plugin</h2>
+		<button v-if="metamaskSupport" @click="saveScore()">
+			Wykonaj kontrakt
+		</button>
+		{{ allScores }}
+	</div>
 	<h1 v-if="roundsLeft != 0" class="header">Guess next card!</h1>
 	<h3
 		v-if="!start && Object.keys(state).length > 0 && roundsLeft != 0"
@@ -48,11 +58,13 @@
 </template>
 
 <script lang="ts">
-	import { defineComponent } from "vue";
+	// import VueMetamask from "vue-metamask";
+	import GameRanking from "./ABI/GameRanking.json";
+	import { defineComponent, ref } from "vue";
 	import { useStore } from "vuex";
 	import { computed } from "vue";
+	import { ethers } from "ethers";
 
-	// TODO move to other file
 	export interface Card {
 		image: string;
 		value: string;
@@ -77,13 +89,29 @@
 		history: Array<Event>;
 	}
 
+	interface Score {
+		from: string;
+		datetime: Date;
+		points: number;
+		name: string;
+	}
 	export default defineComponent({
+		// components: {
+		// 	VueMetamask,
+		// },
 		data() {
 			return {
 				dataReady: false,
 				start: false,
 				state: {} as State,
+				metamaskSupport: false,
+				data: [],
 			};
+		},
+		mounted() {
+			if (typeof (window as any).ethereum !== "undefined") {
+				this.metamaskSupport = true;
+			}
 		},
 		beforeMount() {
 			let state = localStorage.getItem("state");
@@ -103,10 +131,98 @@
 			bet(type: string) {
 				this.store.dispatch("playCard", type);
 			},
+			async connectWallet() {
+				this.data = await (window as any).ethereum.request({
+					method: "eth_requestAccounts",
+				});
+				console.log("address: ", this.data[0]);
+				this.retrieveScores();
+			},
+			// onComplete(data: any) {
+			// 	// change type
+			// 	console.log("data:", data);
+			// },
 		},
 		setup() {
 			const store = useStore();
+			const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // address to env
+			const allScores = ref<Score[]>([]);
+
+			const retrieveScores = async function () {
+				allScores.value = [];
+
+				//@ts-expect-error Window.ethers not TS
+				if (typeof window.ethereum !== "undefined") {
+					//@ts-expect-error Window.ethers not TS
+					const provider = new ethers.providers.Web3Provider(window.ethereum);
+					// Contract reference
+					const contract = new ethers.Contract(
+						contractAddress,
+						GameRanking.abi,
+						provider
+					);
+					try {
+						// call contract public method
+						const data = await contract.getAllScores({});
+						console.log("allScores :>> ", data);
+						// loops messages to format the date and add them to the array
+						data.forEach((score: any) => {
+							allScores.value.push({
+								from: score.from,
+								datetime: new Date(score.datetime * 1000),
+								points: score.points,
+								name: score.name,
+							});
+						});
+					} catch (error) {
+						console.error(error);
+					}
+				}
+			};
+
+			const saveScore = async function () {
+				//@ts-expect-error Window.ethers not TS
+				if (typeof window.ethereum !== "undefined") {
+					// trxInProgress.value = true;
+					//@ts-expect-error Window.ethers not TS
+					const provider = new ethers.providers.Web3Provider(window.ethereum);
+					// get the account that will pay for the trasaction
+					const signer = provider.getSigner();
+					// as the operation we're going to do is a transaction,
+					// we pass the signer instead of the provider
+					const contract = new ethers.Contract(
+						contractAddress,
+						GameRanking.abi,
+						signer
+					);
+					try {
+						const transaction = await contract.saveScore(1, "test", {
+							gasLimit: 300000,
+						});
+
+						console.log("transaction :>> ", transaction);
+						// wait for the transaction to actually settle in the blockchain
+						await transaction.wait();
+						// message.value = "";
+						// trxInProgress.value = false;
+
+						console.log(
+							"transaction proceed, this.getMessages:",
+							//@ts-expect-error no types
+							this.getMessages()
+						);
+						await retrieveScores();
+					} catch (error) {
+						console.error(error);
+						// trxInProgress.value = false;
+					}
+				}
+			};
+
 			return {
+				saveScore,
+				retrieveScores,
+				allScores,
 				store,
 				card: computed(() => store.state.card),
 				history: computed(() => store.state.history),
