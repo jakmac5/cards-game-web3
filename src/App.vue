@@ -40,6 +40,7 @@
 			>No</VButton
 		>
 	</div>
+	{{ state }}
 	<div v-if="start && state.card && state.roundsLeft != 0" class="game">
 		<img alt="card" :src="state.card.image" />
 		{{ state.card.value }}
@@ -51,7 +52,7 @@
 	</div>
 	<div v-if="state.roundsLeft === 0" class="end">
 		<h4 class="header">
-			Congratulations! You have earned {{ points }} points!
+			Congratulations! You have earned {{ state.pointsFixed }} points!
 		</h4>
 		<VButton @click="startGame()" color="green">Start new game</VButton>
 	</div>
@@ -77,18 +78,14 @@
 	}
 
 	const start = ref(false);
-	const state: Ref<State> | { value: any } = ref({});
+	// const state: Ref<State> | { value: any } = ref({});
 	const metamaskSupport: Ref<boolean> = ref(false);
 	const data: Ref<unknown[]> = ref([]);
 	const store = useStore();
 	const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS as string;
 	const allScores = ref<Score[]>([]);
 
-	// const state.roundsLeft: ComputedRef<number> = computed(
-	// 	() => store.state.roundsLeft
-	// );
-	// const card: ComputedRef<Card> = computed(() => store.state.card);
-	// const points: ComputedRef<string> = computed(() => store.state.pointsFixed);
+	const state: ComputedRef<State> = computed(() => store.state);
 	const history: ComputedRef<Array<Event>> = computed(
 		() => store.state.history
 	);
@@ -104,7 +101,7 @@
 		console.log("state", getLocalState);
 		if (getLocalState !== null) {
 			const obj: State = JSON.parse(getLocalState);
-			state.value = obj;
+			store.dispatch("storePrevGame", state.value);
 		}
 	});
 
@@ -112,12 +109,12 @@
 		await store.dispatch("initDeck");
 		start.value = true;
 	}
-	async function loadPrevGame() {
-		await store.dispatch("storePrevGame", state.value);
+	function loadPrevGame() {
+		store.dispatch("storePrevGame", state.value);
 		start.value = true;
 	}
-	async function bet(type: string) {
-		await store.dispatch("playCard", type);
+	function bet(type: string) {
+		store.dispatch("playCard", type);
 	}
 	async function connectWallet() {
 		data.value = await (window as any).ethereum.request({

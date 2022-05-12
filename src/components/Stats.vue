@@ -2,7 +2,7 @@
 	<div class="stats">
 		<div class="row">Cards in deck: {{ state.remaining }}</div>
 		<div class="row">Turns left: {{ state.roundsLeft }}</div>
-		<div class="row">Points: {{ state.points }}</div>
+		<div class="row">Points: {{ state.pointsFixed }}</div>
 	</div>
 </template>
 
