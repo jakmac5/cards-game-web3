@@ -3,7 +3,7 @@
 		<button v-if="metamaskSupport" @click="connectWallet()">
 			Metamask Login
 		</button>
-		<h2 v-else>Install metamask plugin</h2>
+		<h1 v-else>Install metamask plugin</h1>
 		<button v-if="metamaskSupport" @click="saveScore()">
 			Wykonaj kontrakt
 		</button>
@@ -12,20 +12,21 @@
 		</button>
 		{{ allScores }}
 	</div>
-	<h1 v-if="roundsLeft != 0" class="header">Guess next card!</h1>
+	<h2 v-if="state.roundsLeft != 0" class="header">Guess next card!</h2>
 	<h3
-		v-if="!start && Object.keys(state).length > 0 && roundsLeft != 0"
+		v-if="!start && Object.keys(state).length > 0 && state.roundsLeft != 0"
 		class="header"
 	>
 		Reload the previous game?
 	</h3>
-	<div class="nav" v-if="roundsLeft != 0">
+	<div class="nav" v-if="state.roundsLeft != 0">
 		<VButton
 			v-if="!start && Object.keys(state).length === 0"
 			@click="startGame()"
 			color="green"
-			>Start new game</VButton
 		>
+			Start new game
+		</VButton>
 		<VButton
 			v-if="!start && Object.keys(state).length > 0"
 			@click="loadPrevGame()"
@@ -39,19 +40,19 @@
 			>No</VButton
 		>
 	</div>
-	<div v-if="start && card && roundsLeft != 0" class="game">
-		<img alt="card" :src="card.image" />
-		{{ card.value }}
+	<div v-if="start && state.card && state.roundsLeft != 0" class="game">
+		<img alt="card" :src="state.card.image" />
+		{{ state.card.value }}
 		<Stats />
 		<div class="nav">
-			<VButton color="green" @click="bet('high')">HIGHER</VButton>
+			<VButton color="green" @click="bet('high')"> HIGHER </VButton>
 			<VButton color="red" @click="bet('low')">LOWER</VButton>
 		</div>
 	</div>
-	<div v-if="roundsLeft === 0" class="end">
-		<h1 class="header">
+	<div v-if="state.roundsLeft === 0" class="end">
+		<h4 class="header">
 			Congratulations! You have earned {{ points }} points!
-		</h1>
+		</h4>
 		<VButton @click="startGame()" color="green">Start new game</VButton>
 	</div>
 	History: <br />
@@ -60,195 +61,142 @@
 	</div>
 </template>
 
-<script lang="ts">
-	// import VueMetamask from "vue-metamask";
+<script setup lang="ts">
 	import GameRanking from "./ABI/GameRanking.json";
-	import { defineComponent, ref } from "vue";
+	import { ref, computed, onMounted, onBeforeMount } from "vue";
+	import type { Ref, ComputedRef } from "vue";
 	import { useStore } from "vuex";
-	import { computed } from "vue";
 	import { ethers } from "ethers";
+	import { Card, Event, State } from "./store";
 
-	export interface Card {
-		image: string;
-		value: string;
-		code: string;
-		suit: string;
-	}
-	export interface Event {
-		round: number;
-		prev: string;
-		current: string;
-		win: boolean;
-		bet: string;
-	}
-	export interface State {
-		deckId: string;
-		remaining: number;
-		points: number;
-		prevCard: Card | undefined;
-		card: Card | undefined;
-		pointsFixed: string;
-		roundsLeft: number;
-		history: Array<Event>;
-	}
-
-	interface Score {
+	export interface Score {
 		from: string;
 		datetime: Date;
 		points: number;
 		name: string;
 	}
-	export default defineComponent({
-		// components: {
-		// 	VueMetamask,
-		// },
-		data() {
-			return {
-				dataReady: false,
-				start: false,
-				state: {} as State,
-				metamaskSupport: false,
-				data: [],
-			};
-		},
-		mounted() {
-			if (typeof (window as any).ethereum !== "undefined") {
-				this.metamaskSupport = true;
-			}
-		},
-		beforeMount() {
-			let state = localStorage.getItem("state");
-			console.log("state", state);
-			state != null ? (this.state = JSON.parse(state)) : "";
-		},
-		methods: {
-			async startGame() {
-				await this.store.dispatch("initDeck");
-				this.start = true;
-				// await this.store.dispatch("drawCard");
-			},
-			loadPrevGame() {
-				this.store.dispatch("storePrevGame", this.state);
-				this.start = true;
-			},
-			bet(type: string) {
-				this.store.dispatch("playCard", type);
-			},
-			async connectWallet() {
-				this.data = await (window as any).ethereum.request({
-					method: "eth_requestAccounts",
-				});
-				console.log("address: ", this.data[0]);
-				this.retrieveScores();
-			},
-			// onComplete(data: any) {
-			// 	// change type
-			// 	console.log("data:", data);
-			// },
-		},
-		setup() {
-			const store = useStore();
-			const contractAddress = "0xd5a423B8CF5b6097aCC243c18d738934fE09235f"; // address to env
-			const allScores = ref<Score[]>([]);
 
-			const retrieveScores = async function () {
-				allScores.value = [];
+	const start = ref(false);
+	const state: Ref<State> | { value: any } = ref({});
+	const metamaskSupport: Ref<boolean> = ref(false);
+	const data: Ref<unknown[]> = ref([]);
+	const store = useStore();
+	const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS as string;
+	const allScores = ref<Score[]>([]);
 
-				//@ts-expect-error Window.ethers not TS
+	// const state.roundsLeft: ComputedRef<number> = computed(
+	// 	() => store.state.roundsLeft
+	// );
+	// const card: ComputedRef<Card> = computed(() => store.state.card);
+	// const points: ComputedRef<string> = computed(() => store.state.pointsFixed);
+	const history: ComputedRef<Array<Event>> = computed(
+		() => store.state.history
+	);
 
-				if (typeof window.ethereum !== "undefined") {
-					//@ts-expect-error Window.ethers not TS
-
-					const provider = new ethers.providers.Web3Provider(window.ethereum);
-					// const provider = new ethers.providers.AlchemyProvider(
-					// 	"homestead",
-					// 	"Ym9pJEN95QI7l4T6knGpa7-P6hFh6vyZ"
-					// );
-					// const provider = new ethers.providers.JsonRpcProvider(
-					// 	"https://eth-rinkeby.alchemyapi.io/v2/Ym9pJEN95QI7l4T6knGpa7-P6hFh6vyZ"
-					// );
-					// Contract reference
-					const contract = new ethers.Contract(
-						contractAddress,
-						GameRanking.abi,
-						provider
-					);
-					try {
-						// test total
-						// const total = await contract.getTotalScores({});
-						// allScores.value.push = total;
-						// console.log("total:", allScores.value);
-
-						// call contract public method
-						const data = await contract.getAllScores({});
-						console.log("allScores :>> ", data);
-						// // loops messages to format the date and add them to the array
-						data.forEach((score: any) => {
-							allScores.value.push({
-								from: score.from,
-								datetime: new Date(score.datetime * 1000),
-								points: score.points,
-								name: score.name,
-							});
-						});
-					} catch (error) {
-						console.error(error);
-					}
-				}
-			};
-
-			const saveScore = async function () {
-				//@ts-expect-error Window.ethers not TS
-				if (typeof window.ethereum !== "undefined") {
-					// trxInProgress.value = true;
-					//@ts-expect-error Window.ethers not TS
-					const provider = new ethers.providers.Web3Provider(window.ethereum);
-					// get the account that will pay for the trasaction
-					const signer = provider.getSigner();
-					// as the operation we're going to do is a transaction,
-					// we pass the signer instead of the provider
-					const contract = new ethers.Contract(
-						contractAddress,
-						GameRanking.abi,
-						signer
-					);
-					try {
-						const transaction = await contract.saveScore(1, "test", {
-							gasLimit: 300000,
-						});
-
-						console.log("transaction :>> ", transaction);
-						// wait for the transaction to actually settle in the blockchain
-						await transaction.wait();
-						// message.value = "";
-						// trxInProgress.value = false;
-
-						console.log("transaction proceed, waiting to retrieveScores");
-						await retrieveScores();
-						console.log("got scores:", allScores.value);
-					} catch (error) {
-						console.error(error);
-						// trxInProgress.value = false;
-					}
-				}
-			};
-
-			return {
-				saveScore,
-				retrieveScores,
-				allScores,
-				store,
-				card: computed(() => store.state.card),
-				history: computed(() => store.state.history),
-				roundsLeft: computed(() => store.state.roundsLeft),
-				points: computed(() => store.state.pointsFixed),
-			};
-		},
+	onMounted(() => {
+		if (typeof (window as any).ethereum !== "undefined") {
+			metamaskSupport.value = true;
+		}
+		console.log("COntract address:", contractAddress);
 	});
+	onBeforeMount(() => {
+		const getLocalState = localStorage.getItem("state");
+		console.log("state", getLocalState);
+		if (getLocalState !== null) {
+			const obj: State = JSON.parse(getLocalState);
+			state.value = obj;
+		}
+	});
+
+	async function startGame() {
+		await store.dispatch("initDeck");
+		start.value = true;
+	}
+	async function loadPrevGame() {
+		await store.dispatch("storePrevGame", state.value);
+		start.value = true;
+	}
+	async function bet(type: string) {
+		await store.dispatch("playCard", type);
+	}
+	async function connectWallet() {
+		data.value = await (window as any).ethereum.request({
+			method: "eth_requestAccounts",
+		});
+		console.log("address: ", data.value[0]);
+		retrieveScores();
+	}
+
+	async function retrieveScores() {
+		allScores.value = [];
+
+		//@ts-expect-error Window.ethers not TS
+		if (typeof window.ethereum !== "undefined" && contractAddress) {
+			//@ts-expect-error Window.ethers not TS
+			const provider = new ethers.providers.Web3Provider(window.ethereum);
+
+			// Contract reference
+			const contract = new ethers.Contract(
+				contractAddress,
+				GameRanking.abi,
+				provider
+			);
+			try {
+				// call contract public method
+				const data = await contract.getAllScores({});
+				console.log("allScores :>> ", data);
+				// // loops messages to format the date and add them to the array
+				data.forEach((score: any) => {
+					allScores.value.push({
+						from: score.from,
+						datetime: new Date(score.datetime * 1000),
+						points: score.points,
+						name: score.name,
+					});
+				});
+			} catch (error) {
+				console.error(error);
+			}
+		}
+	}
+
+	async function saveScore() {
+		//@ts-expect-error Window.ethers not TS
+		if (typeof window.ethereum !== "undefined") {
+			//@ts-expect-error Window.ethers not TS
+			const provider = new ethers.providers.Web3Provider(window.ethereum);
+			// get the account that will pay for the trasaction
+			const signer = provider.getSigner();
+			// as the operation we're going to do is a transaction,
+			// we pass the signer instead of the provider
+			const contract = new ethers.Contract(
+				contractAddress,
+				GameRanking.abi,
+				signer
+			);
+			try {
+				const transaction = await contract.saveScore(1, "test", {
+					gasLimit: 300000,
+				});
+
+				console.log("transaction :>> ", transaction);
+				// wait for the transaction to actually settle in the blockchain
+				await transaction.wait();
+
+				console.log("transaction proceed, waiting to retrieveScores");
+				await retrieveScores();
+				console.log("got scores:", allScores.value);
+			} catch (error) {
+				console.error(error);
+				// trxInProgress.value = false;
+			}
+		}
+	}
 </script>
 
 <style lang="scss">
 	#app {
+		@apply flex flex-col justify-center items-center;
 		font-family: Avenir, Helvetica, Arial, sans-serif;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
@@ -257,7 +205,6 @@
 		background-color: #1a1a1a;
 		width: 100%;
 		height: 100%;
-		@apply flex flex-col justify-center items-center;
 	}
 
 	body,

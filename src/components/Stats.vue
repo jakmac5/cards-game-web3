@@ -1,25 +1,19 @@
 <template>
 	<div class="stats">
-		<div class="row">Cards in deck: {{ cardsRemaining }}</div>
-		<div class="row">Turns left: {{ roundsLeft }}</div>
-		<div class="row">Points: {{ points }}</div>
+		<div class="row">Cards in deck: {{ state.remaining }}</div>
+		<div class="row">Turns left: {{ state.roundsLeft }}</div>
+		<div class="row">Points: {{ state.points }}</div>
 	</div>
 </template>
 
-<script lang="ts">
-	import { defineComponent } from "vue";
-	import { useStore } from "vuex";
+<script setup lang="ts">
 	import { computed } from "vue";
-	export default defineComponent({
-		setup() {
-			const store = useStore();
-			return {
-				cardsRemaining: computed(() => store.state.remaining),
-				points: computed(() => store.state.pointsFixed),
-				roundsLeft: computed(() => store.state.roundsLeft),
-			};
-		},
-	});
+	import type { ComputedRef } from "vue";
+	import type { State } from "../store";
+	import { useStore } from "vuex";
+
+	const store = useStore();
+	const state: ComputedRef<State> = computed(() => store.state);
 </script>
 
 <style scoped lang="scss">
