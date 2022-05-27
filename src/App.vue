@@ -76,6 +76,10 @@
 		points: number;
 		name: string;
 	}
+	// interface BigNumber {
+	// 	_hex: string;
+	// 	_isBigNumber: boolean;
+	// }
 
 	const start = ref(false);
 	// const state: Ref<State> | { value: any } = ref({});
@@ -123,6 +127,9 @@
 		console.log("address: ", data.value[0]);
 		retrieveScores();
 	}
+	function formatDate(bn: ethers.BigNumber) {
+		return new Date(bn.toNumber() * 1000);
+	}
 
 	async function retrieveScores() {
 		allScores.value = [];
@@ -141,13 +148,14 @@
 			try {
 				// call contract public method
 				const data = await contract.getAllScores({});
-				console.log("allScores :>> ", data);
+				console.log("allScores :>> ", data[0].name);
 				// // loops messages to format the date and add them to the array
-				data.forEach((score: any) => {
+
+				data.forEach((score: Score) => {
 					allScores.value.push({
 						from: score.from,
-						datetime: new Date(score.datetime * 1000),
-						points: score.points,
+						datetime: formatDate(ethers.BigNumber.from(score.datetime)),
+						points: ethers.BigNumber.from(score.points).toNumber(),
 						name: score.name,
 					});
 				});
@@ -172,7 +180,7 @@
 				signer
 			);
 			try {
-				const transaction = await contract.saveScore(1, "test", {
+				const transaction = await contract.saveScore(state.value.points * 100, "test", {
 					gasLimit: 300000,
 				});
 
